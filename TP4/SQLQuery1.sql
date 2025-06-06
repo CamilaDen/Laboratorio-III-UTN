@@ -6,13 +6,13 @@ LEFT JOIN  TiposUsuarios AS TU
 ON U.IdTipoUsuario = U.IdTipoUsuario;
 
 --2-Listar el ID, nombre, apellido y tipo de usuario de aquellos usuarios que sean del tipo 'Suscripción Free' o 'Suscripción Básica'
-SELECT  *
+SELECT  U.IdUsuario, U.Nombre, U.Apellido, U.IdTipoUsuario
 FROM Usuarios U
 INNER JOIN TiposUsuarios AS TU ON U.IdUsuario = TU.IdTipoUsuario WHERE TU.IdTipoUsuario = 1 OR TU.IdTipoUsuario = 2;
 
 --3-Listar los nombres de archivos, extensión, tamaño expresado en Megabytes y el nombre del tipo de archivo.
 --NOTA: En la tabla Archivos el tamaño está expresado en Bytes.
-SELECT A.Nombre, A.Extension, Tamanio, TA.TipoArchivo 
+SELECT A.Nombre, A.Extension, (Tamanio/1000000) AS Megabytes, TA.TipoArchivo 
 FROM Archivos A
 INNER JOIN TiposArchivos AS TA ON TA.IdTipoArchivo = A.IDTipoArchivo;
 
@@ -25,7 +25,7 @@ WHERE TA.TipoArchivo LIKE '%ZIP%' OR TA.TipoArchivo Like '%Word%' OR TA.TipoArch
 OR TA.TipoArchivo Like'%GIF%';
 
 --5-Listar los nombres de archivos, su extensión, el tamaño en megabytes y la fecha de creación de aquellos archivos que le pertenezcan al usuario dueño con nombre 'Michael' y apellido 'Williams'.
-SELECT A.Nombre, A.Extension, A.Tamanio, A.FechaCreacion
+SELECT A.Nombre, A.Extension, (A.Tamanio/1000000) AS Megabytes, A.FechaCreacion
 FROM Archivos A
 INNER JOIN Usuarios AS U ON U.IdUsuario = A.IdUsuarioDuenio
 WHERE U.Nombre Like 'Michael' AND U.Apellido Like 'Williams';
@@ -59,9 +59,22 @@ ORDER BY A.Tamanio DESC;
 --10-Por cada archivo listar el nombre del archivo, la extensión, el tamaño en bytes, el nombre del tipo de archivo y el tamaño calculado en su mayor expresión y la unidad calculada. 
 --Siendo Gigabytes si al menos pesa un gigabyte, Megabytes si al menos pesa un megabyte, Kilobyte si al menos pesa un kilobyte o en su defecto expresado en bytes.
 --Por ejemplo, si el archivo imagen.jpg pesa 40960 bytes entonces debe figurar 40 en la columna Tamaño Calculado y 'Kilobytes' en la columna unidad.
-SELECT A.Nombre, A.Extension, A.Tamanio, TA.TipoArchivo
+SELECT 
+    A.Nombre, A.Extension, A.Tamanio AS TamanoBytes, TA.TipoArchivo,
+    CASE 
+        WHEN A.Tamanio >= 1073741824 THEN CAST(ROUND(A.Tamanio / 1073741824.0, 2) AS DECIMAL(10,2)) -- GB
+        WHEN A.Tamanio >= 1048576 THEN CAST(ROUND(A.Tamanio / 1048576.0, 2) AS DECIMAL(10,2)) -- MB
+        WHEN A.Tamanio >= 1024 THEN CAST(ROUND(A.Tamanio / 1024.0, 2) AS DECIMAL(10,2)) -- KB
+        ELSE CAST(A.Tamanio AS DECIMAL(10,2)) -- Bytes
+    END AS TamanoCalculado,
+    CASE 
+        WHEN A.Tamanio >= 1073741824 THEN 'Gigabytes'
+        WHEN A.Tamanio >= 1048576 THEN 'Megabytes'
+        WHEN A.Tamanio >= 1024 THEN 'Kilobytes'
+        ELSE 'Bytes'
+    END AS Unidad
 FROM Archivos A
-INNER JOIN TiposArchivos TA ON TA.IdTipoArchivo = A.IDTipoArchivo; --TERMINAR...
+JOIN TiposArchivos TA ON A.IDTipoArchivo = TA.IdTipoArchivo;
 
 --11-Listar los nombres de archivo y extensión de los archivos que han sido compartidos.
 SELECT DISTINCT A.Nombre, A.Extension
@@ -86,10 +99,10 @@ INNER JOIN Permisos P ON P.IdPermiso = AC.IdPermiso
 WHERE P.Nombre Like 'Escritura' AND AC.FechaCompartido IS NOT NULL;
 
 --14-Listar los nombres de archivos y extensión de los archivos que no han sido compartidos.
-SELECT A.Nombre, A.Extension
-FROM Archivos A
-WHERE NOT IN (SELECT IdArchivo FROM Archivos Ar
-INNER JOIN ArchivosCompartidos AC ON Ar.IdArchivo = AC.IdArchivo); --REVISAR
+SELECT Ar.Nombre, Ar.Extension FROM Archivos Ar
+LEFT JOIN ArchivosCompartidos AC ON Ar.IdArchivo = AC.IdArchivo 
+WHERE AC.FechaCompartido IS NULL; 
+--revisar, left join trae todos los registros de Archivos y los que matchean con la otra tabla, en este caso solo hay que traer los que no esten en la tabla de compartidos
 
 --15-Listar los apellidos y nombres de los usuarios dueños que tienen archivos eliminados.
 SELECT U.Apellido, U.Nombre FROM Archivos A
@@ -121,7 +134,6 @@ SELECT A.Nombre, A.Extension, A.Extension, U.Apellido, U.Nombre
 FROM Archivos A
 INNER JOIN Usuarios U ON U.IdUsuario = A.IdUsuarioDuenio
 INNER JOIN ArchivosCompartidos AC ON AC.IdArchivo = A.IdArchivo;--TODO:TERMINAR..
-
 
 --20-Apellido y nombre de los usuarios que tengan compartido o sean dueños del archivo con nombre 'Documento Legal'.
 SELECT DISTINCT U.Apellido, U.Nombre
